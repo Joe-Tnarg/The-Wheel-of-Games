@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<meta charset="UTF-8">
+		<title>The Wheel of Games</title>
+	</head>
+
+	<body>
+		<h1>The Wheel of Games</h1>
+		<canvas width="600" height="600" style=" border:2px solid black; "></canvas>		<!--Spinner box-->
+		<br />
+
+		<button id="spinBtn" style ="font-size: 24px; padding: 15px 30px;">	<!--Button-->
+			Spin it!
+		</button>
+
+		<div id="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+			
+			<!--Modal popup showing winning game-->
+			<div id="modalContent" style="
+					 background: #82e0ff;
+					 padding: 20px;
+					 border-radius: 25px;
+					 border: 2px solid #f56527;
+					 box-shadow: 0 10px 25px #000000;
+					 text-align: center;
+					 font-size: 40px;
+					 position: absolute;
+					 top: 50%;
+					 left: 60%;
+					 transform: translate(-50%, -50%);
+					 min-width: 200px;">
+				<p id="modalText"></p>
+			</div>
+		</div>
+
+		<script>
+			const GAMES =[					//Games list
+			"The WHAT THE FUCK Game",
+			"PISS the game",
+			"Strip Chess",
+			"Crazy sevens",
+			"This game has a really long name to test truncation"
+			];
+
+			let spinStart = 0;			//Variables
+			let spinDuration = 5000;
+			let startRotation = 0;
+			let targetRotation = 0;;
+			let rotation = 0;
+			let isSpinning = false;
+
+			drawWheel();
+
+			const spinButton = document.querySelector("#spinBtn");		//Button click handler
+
+			spinButton.addEventListener("click", () => {
+			if (isSpinning) return;
+
+			isSpinning = true;
+			startRotation = rotation;
+
+			// Always spin several full turns + random offset
+			targetRotation = rotation + Math.PI * 2 * (5 + Math.random() * 3);
+			requestAnimationFrame(spinLoop);
+			});
+
+			const modal = document.querySelector("#modal");
+
+			// Click outside the popup closes it
+			modal.addEventListener("click", () => {
+			modal.style.display = "none";
+			});
+
+													//FUNCTIONS
+			function drawWheel() {
+			const canvas = document.querySelector("canvas");
+			const ctx = canvas.getContext("2d");
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+			const sliceAngle = (2*Math.PI)/GAMES.length;
+			const cenX = canvas.width/2;
+			const cenY = canvas.height/2;
+			const hubRadius = 35;					//Hub radius
+			const rad = 270;						//Wheel radius
+
+			for(let i = 0; i < GAMES.length; i++) {
+			const startAngle = rotation + i * sliceAngle;
+			const endAngle = startAngle + sliceAngle;
+
+
+			const wheelColours = ["#f56527", "#00a1ff", "#1af057"];	//Wheel colours
+			ctx.beginPath();
+			ctx.moveTo(cenX, cenY);
+			ctx.arc(cenX, cenY, rad, startAngle, endAngle);
+			ctx.fillStyle = wheelColours[i % wheelColours.length];
+			ctx.fill();
+
+			ctx.beginPath();
+			ctx.arc(cenX, cenY, hubRadius, 0, 2 * Math.PI);		//Spinner hub
+			ctx.fillStyle = "#ffffff";
+			ctx.fill();
+
+			ctx.save();								//Wedge lables
+			ctx.translate(cenX, cenY);
+			ctx.rotate(startAngle + sliceAngle/2);
+			ctx.textAlign = "right";
+			ctx.fillStyle = "#000";
+			const maxFont = 18;						// Dynamic font size based on wedge size
+			const minFont = 8;
+			const fontSize = Math.max(minFont,Math.min(maxFont, sliceAngle * 180 / Math.PI * 0.6));
+			ctx.font = `${fontSize}px sans-serif`; // label font
+			const textRadius = hubRadius + (rad - hubRadius) * 0.95;
+			const maxTextWidth = sliceAngle * textRadius * 0.69;
+			const label = fitText(ctx, GAMES[i], maxTextWidth);
+
+			ctx.fillText(label, textRadius, 5);
+			ctx.restore();
+			};
+
+			ctx.save();								//Pointer arrow for selected game
+			ctx.fillStyle = "red";					//Arrow colour
+
+			const tipX = cenX + rad;				//Tip placement (currently edge of wheel)
+			const tipY = cenY;
+			const baseWidth = 20;					//Base dimensions
+			const baseDepth = 20;
+
+			ctx.beginPath();						//Drawing arrow
+			ctx.moveTo(tipX, tipY);
+			ctx.lineTo(tipX + baseDepth, tipY - baseWidth/2);
+			ctx.lineTo(tipX + baseDepth, tipY + baseWidth/2);
+			ctx.closePath();
+			ctx.fill();
+			ctx.restore();
+			};
+
+			function spinLoop(timestamp) {
+			if (!spinStart) spinStart = timestamp;
+
+			const elapsed = timestamp - spinStart;
+			const progress = Math.min(elapsed / spinDuration, 1);
+
+			// Ease-out cubic
+			const ease = 1 - Math.pow(1 - progress, 3);
+
+			rotation = startRotation + ease * (targetRotation - startRotation);
+			drawWheel();
+
+			if (progress < 1) {
+			requestAnimationFrame(spinLoop);
+			} else {
+			spinStart = 0;
+			isSpinning = false;
+
+			const selectedIndex = getWinningGame();
+			const modal = document.querySelector("#modal");
+			document.querySelector("#modalText").textContent =
+			"The wheel has spoken, you shall play: " + GAMES[selectedIndex];
+			modal.style.display = "block";
+			}
+			}
+
+			function getWinningGame() {
+			const sliceAngle = (2 * Math.PI) / GAMES.length;
+
+			let normRotation = rotation % (2 * Math.PI);
+			if (normRotation < 0) normRotation += 2 * Math.PI;
+
+			const index = Math.floor (((2 * Math.PI) - normRotation) / sliceAngle) % GAMES.length;
+
+			return index;
+			};
+
+			function fitText(ctx, text, maxWidth) {
+			if (ctx.measureText(text).width <= maxWidth) return text;
+
+			const ellipsis = "...";
+			let truncated = text;
+
+			while (truncated.length > 0 &&
+			ctx.measureText(truncated + ellipsis).width > maxWidth) {
+			truncated = truncated.slice(0, -1);
+			}
+
+    return truncated + ellipsis;
+}
+
+		</script>
+	</body>
+	</html>
+
+<!--To add: three colours if odd number of games. OR one set of colours that work with all numbers-->
